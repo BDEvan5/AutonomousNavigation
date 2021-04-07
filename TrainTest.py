@@ -68,3 +68,34 @@ def test_single_vehicle(env, vehicle, show=False, laps=100):
     print(f"Completes: {completes} --> {(completes / (completes + crashes) * 100):.2f} %")
     print(f"Lap times: {lap_times} --> Avg: {np.mean(lap_times)}")
 
+
+def run_oracle(env, vehicle, show=False, steps=100):
+    done = False
+    state = env.reset()
+    vehicle.plan(env.env_map)
+    while not vehicle.plan(env.env_map):
+        state = env.reset() 
+
+    for n in range(steps):
+        a = vehicle.act(state)
+        s_prime, r, done, _ = env.step_plan(a)
+
+        state = s_prime
+        
+        # env.render(False)
+        
+        if done:
+            vehicle.done_entry(s_prime)
+            env.render(wait=False)
+
+            if s_prime[-1] == -1:
+                env.render(wait=True)
+
+            state = env.reset()
+            while not vehicle.plan(env.env_map):
+                state = env.reset()
+
+    print(f"Finished Training: {vehicle.name}")
+
+
+

@@ -302,6 +302,8 @@ class NavMap:
         self.end_goal = np.zeros(2)
         self.start_pose = np.zeros(3)
 
+        self.wpts = None
+
         self.load_map()
 
     def load_map(self):
@@ -320,6 +322,7 @@ class NavMap:
 
         self.map_img = np.array(Image.open(map_img_path).transpose(Image.FLIP_TOP_BOTTOM))
         self.map_img = self.map_img.astype(np.float64)
+        self.map_img = self.map_img.T
 
         # grayscale -> binary
         self.map_img[self.map_img <= 128.] = 0.
@@ -330,6 +333,15 @@ class NavMap:
 
         img = np.ones_like(self.map_img) * 255 - self.map_img
         self.dt_img = ndimage.distance_transform_edt(img) * self.resolution
+        self.dt_img = np.array(self.dt_img).T
+
+        # plt.figure(1)
+        # plt.imshow(self.dt_img, origin='lower')
+        # plt.pause(0.001)
+
+        # plt.figure(2)
+        # plt.imshow(self.map_img, origin='lower')
+        # plt.pause(0.001)
 
     def generate_location(self):
         obs_threshold = 0.5 # value in meters
@@ -356,22 +368,21 @@ class NavMap:
         plt.xlim([0, self.map_width])
         plt.ylim([0, self.map_height])
 
-        plt.imshow(self.map_img.T, origin='lower')
+        plt.imshow(self.map_img, origin='lower')
 
         x, y = self.xy_to_row_column(self.start_pose)
         plt.plot(x, y, '*', markersize=12, color='g')
         x, y = self.xy_to_row_column(self.end_goal)
         plt.plot(x, y, '*', markersize=12, color='r')
 
+        if self.wpts is not None:
+            xs, ys = self.convert_positions(self.wpts)
+            plt.plot(xs, ys, 'x', markersize=12)
+
         plt.pause(0.0001)
         if wait:
             plt.show()
             pass
-
-    # def xy_to_row_column(self, pt):
-    #     c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width-2)))
-    #     r = int(round(np.clip(pt[1] / self.resolution, 0, self.map_height-2)))
-    #     return c, r
 
     def xy_to_row_column(self, pt):
         c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width+1)))
@@ -385,7 +396,18 @@ class NavMap:
         x, y = self.xy_to_row_column(x_in)
         if x >= self.map_width or y >= self.map_height:
             return True
-        if self.map_img[x, y]: # consider using dx???
+        # if self.map_img[x, y]: # consider using dx???
+        if self.dt_img[x, y] == 0: # consider using dx???
+            return True
+
+    def check_search_location(self, x_in):
+        if x_in[0] < 0 or x_in[1] < 0:
+            return True
+
+        x, y = self.xy_to_row_column(x_in)
+        if x >= self.map_width or y >= self.map_height:
+            return True
+        if self.dt_img[x, y] < 0.4: # consider using dx???
             return True
 
     def convert_positions(self, pts):
