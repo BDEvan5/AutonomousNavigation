@@ -7,7 +7,7 @@ def train_nav_std():
     env = NavSim("pfeiffer")
     vehicle = AgentNav("std_nav_test", env.sim_conf)
 
-    train_vehicle(env, vehicle, 10000)
+    train_vehicle(env, vehicle, 50000)
 
 def test_nav_std():
 

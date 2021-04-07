@@ -61,8 +61,6 @@ class BaseSim:
         self.car.update_kinematic_state(acceleration, steer_dot, self.timestep)
         self.steps += 1
 
-        return self.done_fcn()
-
     def step_plan(self, action):
         """
         Takes multiple control steps based on the number of control steps per planning step
@@ -73,7 +71,8 @@ class BaseSim:
         """
 
         for _ in range(self.plan_steps):
-            if self.step_control(action):
+            self.step_control(action)
+            if self.done_fcn():
                 break
 
         self.record_history(action)
@@ -135,7 +134,8 @@ class BaseSim:
         #TODO: move this reset to inside car
         self.env_map.end_goal = self.env_map.generate_location()
         start_pose = self.env_map.generate_location()
-        orientation = (np.random.random() - 0.5) * 2* np.pi
+        base_orientation = lib.get_bearing(start_pose, self.env_map.end_goal)
+        orientation = base_orientation + (np.random.random() - 0.5) * np.pi/2
         self.env_map.start_pose = np.append(start_pose, orientation)
         self.car.reset_state(self.env_map.start_pose)
 
@@ -255,7 +255,10 @@ class BaseSim:
     def get_target_obs(self):
         target = self.env_map.end_goal
         pos = [self.car.x, self.car.y]
-        angle = lib.get_bearing(pos, target) + self.car.theta
+        base_angle = lib.get_bearing(pos, target) 
+        # angle = base_angle - self.car.theta
+        angle = lib.sub_angles_complex(base_angle, self.car.theta)
+        # angle = lib.add_angles_complex(base_angle, self.car.theta)
         distance = lib.get_distance(pos, target)
 
         return [angle, distance]
@@ -278,10 +281,15 @@ class BaseSim:
         pos = [self.car.x, self.car.y]
         if lib.get_distance(pos, self.env_map.end_goal) < distance_threshold:
             self.done = True
+            self.done_reason = "Target reached"
+            self.reward = 1
         elif self.steps > self.max_steps:
             self.done = True
+            self.done_reason = "Max steps reached"
         elif self.env_map.check_scan_location(pos):
             self.done = True
+            self.reward = -1
+            self.done_reason = "Vehicle has crashed"
 
         return self.done
 

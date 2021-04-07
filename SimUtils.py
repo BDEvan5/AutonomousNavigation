@@ -331,7 +331,6 @@ class NavMap:
         img = np.ones_like(self.map_img) * 255 - self.map_img
         self.dt_img = ndimage.distance_transform_edt(img) * self.resolution
 
-
     def generate_location(self):
         obs_threshold = 0.5 # value in meters
 
@@ -369,9 +368,14 @@ class NavMap:
             plt.show()
             pass
 
+    # def xy_to_row_column(self, pt):
+    #     c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width-2)))
+    #     r = int(round(np.clip(pt[1] / self.resolution, 0, self.map_height-2)))
+    #     return c, r
+
     def xy_to_row_column(self, pt):
-        c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width-2)))
-        r = int(round(np.clip(pt[1] / self.resolution, 0, self.map_height-2)))
+        c = int(round(np.clip(pt[0] / self.resolution, 0, self.map_width+1)))
+        r = int(round(np.clip(pt[1] / self.resolution, 0, self.map_height+1)))
         return c, r
 
     def check_scan_location(self, x_in):

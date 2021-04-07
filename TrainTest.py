@@ -14,7 +14,7 @@ def train_vehicle(env, vehicle, steps: int):
         state = s_prime
         vehicle.agent.train(2)
         
-        # env.render(False)
+        env.render(False)
         
         if done:
             vehicle.done_entry(s_prime)
