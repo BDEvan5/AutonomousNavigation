@@ -2,6 +2,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from numba import njit
 import LibFunctions as lib
+import casadi as ca
+
 
 
 class PathFinder:
@@ -198,7 +200,6 @@ class PurePursuit:
     def set_wpts(self, wpts, v):
         self.vs = np.ones(len(wpts)) * v
         self.wpts = wpts
-        # self.wpts = np.concatenate([wpts, vs[:, None]], axis=-1)
         self.diffs = self.wpts[1:,:] - self.wpts[:-1,:]
         self.l2s   = self.diffs[:,0]**2 + self.diffs[:,1]**2 
 
@@ -240,7 +241,6 @@ class PurePursuit:
 
     def get_actuation(self, pose_theta, lookahead_point, position):
         waypoint_y = np.dot(np.array([np.cos(pose_theta), np.sin(-pose_theta)]), lookahead_point[0:2]-position)
-        # waypoint_y = np.dot(np.array([np.cos(pose_theta), np.sin(-pose_theta)]), lookahead_point[0:2]-position)
 
         speed = lookahead_point[2]
         if np.abs(waypoint_y) < 1e-6:
@@ -348,6 +348,166 @@ def first_point_on_trajectory_intersecting_circle(point, radius, trajectory, t=0
     # print min_dist_segment, dists[min_dist_segment], projections[min_dist_segment]
 
  
+class PathOptimiser:
+    def __init__(self, wpts, env_map) -> None:
+        self.wpts = wpts
+        self.env_map = env_map
+
+        self.nvecs = None
+        self.widths = None
+
+    def optimise_path(self):
+        self.find_nvecs()
+        self.find_widths()
+
+        return self.optimise_trajectory()
+
+    def find_nvecs(self):
+        N = len(self.wpts)
+        track = self.wpts
+
+        nvecs = []
+        nvec = lib.theta_to_xy(np.pi/2 + lib.get_bearing(track[0, :], track[1, :]))
+        nvecs.append(nvec)
+        for i in range(1, len(track)-1):
+            pt1 = track[i-1]
+            pt2 = track[min((i, N)), :]
+            pt3 = track[min((i+1, N-1)), :]
+
+            th1 = lib.get_bearing(pt1, pt2)
+            th2 = lib.get_bearing(pt2, pt3)
+            if th1 == th2:
+                th = th1
+            else:
+                dth = lib.sub_angles_complex(th1, th2) / 2
+                th = lib.add_angles_complex(th2, dth)
+
+            new_th = th + np.pi/2
+            nvec = lib.theta_to_xy(new_th)
+            nvecs.append(nvec)
+
+        nvec = lib.theta_to_xy(np.pi/2 + lib.get_bearing(track[-2, :], track[-1, :]))
+        nvecs.append(nvec)
+
+        self.nvecs = np.array(nvecs)
+
+    def find_widths(self):
+        widths = np.zeros_like(self.wpts)
+        for i, pt in enumerate(self.wpts):
+            x, y = self.env_map.xy_to_row_column(pt)
+            #TODO: change this to get individual widths for each side
+            w = min(self.env_map.dt_img[x, y] * 0.8, 0.5) 
+            widths[i, 0] = w
+            widths[i, 1] = w
+
+        self.widths = widths
+
+    def optimise_trajectory(self):
+        n_set = MinCurvatureTrajectory(self.wpts, self.nvecs, self.widths)
+
+        d_pts = n_set * self.nvecs
+        wpts = self.wpts + d_pts
+
+        return wpts
+
+
+
+def MinCurvatureTrajectory(pts, nvecs, ws):
+    """
+    This function uses optimisation to minimise the curvature of the path
+    """
+    w_min = - ws[:, 0] * 0.9
+    w_max = ws[:, 1] * 0.9
+    th_ns = [lib.get_bearing([0, 0], nvecs[i, 0:2]) for i in range(len(nvecs))]
+
+    N = len(pts)
+
+    n_f_a = ca.MX.sym('n_f', N)
+    n_f = ca.MX.sym('n_f', N-1)
+    th_f = ca.MX.sym('n_f', N-1)
+
+    x0_f = ca.MX.sym('x0_f', N-1)
+    x1_f = ca.MX.sym('x1_f', N-1)
+    y0_f = ca.MX.sym('y0_f', N-1)
+    y1_f = ca.MX.sym('y1_f', N-1)
+    th1_f = ca.MX.sym('y1_f', N-1)
+    th2_f = ca.MX.sym('y1_f', N-1)
+    th1_f1 = ca.MX.sym('y1_f', N-2)
+    th2_f1 = ca.MX.sym('y1_f', N-2)
+
+    o_x_s = ca.Function('o_x', [n_f], [pts[:-1, 0] + nvecs[:-1, 0] * n_f])
+    o_y_s = ca.Function('o_y', [n_f], [pts[:-1, 1] + nvecs[:-1, 1] * n_f])
+    o_x_e = ca.Function('o_x', [n_f], [pts[1:, 0] + nvecs[1:, 0] * n_f])
+    o_y_e = ca.Function('o_y', [n_f], [pts[1:, 1] + nvecs[1:, 1] * n_f])
+
+    dis = ca.Function('dis', [x0_f, x1_f, y0_f, y1_f], [ca.sqrt((x1_f-x0_f)**2 + (y1_f-y0_f)**2)])
+
+    track_length = ca.Function('length', [n_f_a], [dis(o_x_s(n_f_a[:-1]), o_x_e(n_f_a[1:]), 
+                                o_y_s(n_f_a[:-1]), o_y_e(n_f_a[1:]))])
+
+    real = ca.Function('real', [th1_f, th2_f], [ca.cos(th1_f)*ca.cos(th2_f) + ca.sin(th1_f)*ca.sin(th2_f)])
+    im = ca.Function('im', [th1_f, th2_f], [-ca.cos(th1_f)*ca.sin(th2_f) + ca.sin(th1_f)*ca.cos(th2_f)])
+
+    sub_cmplx = ca.Function('a_cpx', [th1_f, th2_f], [ca.atan2(im(th1_f, th2_f),real(th1_f, th2_f))])
+    
+    get_th_n = ca.Function('gth', [th_f], [sub_cmplx(ca.pi*np.ones(N-1), sub_cmplx(th_f, th_ns[:-1]))])
+    d_n = ca.Function('d_n', [n_f_a, th_f], [track_length(n_f_a)/ca.tan(get_th_n(th_f))])
+
+    # objective
+    real1 = ca.Function('real1', [th1_f1, th2_f1], [ca.cos(th1_f1)*ca.cos(th2_f1) + ca.sin(th1_f1)*ca.sin(th2_f1)])
+    im1 = ca.Function('im1', [th1_f1, th2_f1], [-ca.cos(th1_f1)*ca.sin(th2_f1) + ca.sin(th1_f1)*ca.cos(th2_f1)])
+
+    sub_cmplx1 = ca.Function('a_cpx1', [th1_f1, th2_f1], [ca.atan2(im1(th1_f1, th2_f1),real1(th1_f1, th2_f1))])
+    
+    # define symbols
+    n = ca.MX.sym('n', N)
+    th = ca.MX.sym('th', N-1)
+
+    nlp = {\
+    'x': ca.vertcat(n, th),
+    'f': ca.sumsqr(sub_cmplx1(th[1:], th[:-1])), 
+    # 'f': ca.sumsqr(track_length(n)), 
+    'g': ca.vertcat(
+                # dynamic constraints
+                n[1:] - (n[:-1] + d_n(n, th)),
+
+                # boundary constraints
+                n[0], #th[0],
+                n[-1], #th[-1],
+            ) \
+    
+    }
+
+    # S = ca.nlpsol('S', 'ipopt', nlp, {'ipopt':{'print_level':5}})
+    S = ca.nlpsol('S', 'ipopt', nlp, {'ipopt':{'print_level':0}})
+
+    ones = np.ones(N)
+    n0 = ones*0
+
+    th0 = []
+    for i in range(N-1):
+        th_00 = lib.get_bearing(pts[i, 0:2], pts[i+1, 0:2])
+        th0.append(th_00)
+
+    th0 = np.array(th0)
+
+    x0 = ca.vertcat(n0, th0)
+
+    lbx = list(w_min) + [-np.pi]*(N-1) 
+    ubx = list(w_max) + [np.pi]*(N-1) 
+
+    r = S(x0=x0, lbg=0, ubg=0, lbx=lbx, ubx=ubx)
+
+    x_opt = r['x']
+
+    n_set = np.array(x_opt[:N])
+    # thetas = np.array(x_opt[1*N:2*(N-1)])
+
+    return n_set
+
+
+
+
 class Oracle(PurePursuit):
     def __init__(self, sim_conf):
         PurePursuit.__init__(self, sim_conf)
@@ -372,19 +532,16 @@ class Oracle(PurePursuit):
         # discritize somehow
         path_finder = PathFinder(check_fcn, start, end)
         try:
-            path = path_finder.run_search(0.2)
+            path = path_finder.run_search(0.4)
         except AssertionError:
             return False
         
-        # path = find_path(check_fcn, start, end)
 
-        # wpts = optimise_path(path, check_fcn)
+        path_optimiser = PathOptimiser(path, env_map)
+        wpts = path_optimiser.optimise_path()
 
-        env_map.wpts = path
-
-
-        # self.pp.set_wpts(wpts)
-        self.set_wpts(path, 1)
+        env_map.wpts = wpts
+        self.set_wpts(wpts, 1)
 
         return True
 
