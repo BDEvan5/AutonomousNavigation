@@ -240,18 +240,18 @@ class SimHistory:
         plt.plot(self.steering)
         plt.pause(0.001)
 
-        plt.figure(2)
-        plt.clf()
-        plt.title("Velocity history")
-        plt.plot(self.velocities)
-        if vs is not None:
-            r = len(vs) / len(self.velocities)
-            new_vs = []
-            for i in range(len(self.velocities)):
-                new_vs.append(vs[int(round(r*i))])
-            plt.plot(new_vs)
-            plt.legend(['Actual', 'Planned'])
-        plt.pause(0.001)
+        # plt.figure(2)
+        # plt.clf()
+        # plt.title("Velocity history")
+        # plt.plot(self.velocities)
+        # if vs is not None:
+        #     r = len(vs) / len(self.velocities)
+        #     new_vs = []
+        #     for i in range(len(self.velocities)):
+        #         new_vs.append(vs[int(round(r*i))])
+        #     plt.plot(new_vs)
+        #     plt.legend(['Actual', 'Planned'])
+        # plt.pause(0.001)
 
     def show_forces(self):
         mu = self.sim_conf['car']['mu']
@@ -344,19 +344,21 @@ class NavMap:
         # plt.pause(0.001)
 
     def generate_location(self):
-        obs_threshold = 0.5 # value in meters
+        obs_threshold = 1 # value in meters
 
         rands = np.random.random(2)
         location = rands * [self.map_width, self.map_height] * self.resolution
-        x = int(location[0])
-        y = int(location[1])
+        x = int(location[0]/self.resolution)
+        y = int(location[1]/self.resolution)
         i = 0
-        while self.dt_img[x, y] < obs_threshold and i < 100:
+        while self.dt_img[x, y] < obs_threshold and i < 1000:
             rands = np.random.random(2)
             location = rands * [self.map_width, self.map_height] * self.resolution
-            x = int(location[0])
-            y = int(location[1])
+            x = int(location[0]/self.resolution)
+            y = int(location[1]/self.resolution)
             i += 1
+
+        print(f"DT val ({location}) --> ({x, y}): {self.dt_img[x, y]}")
 
         return location
 
