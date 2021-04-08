@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from numba import njit
 import LibFunctions as lib
 import casadi as ca
-
+from Imitation import BufferIL
 
 
 class PathFinder:
@@ -191,7 +191,7 @@ class PurePursuit:
         self.f_max = mu * self.m * g #* safety_f
 
         self.v_gain = 0.95
-        self.lookahead = 0.5
+        self.lookahead = 1
 
         self.wpts = None
         self.vs = None
@@ -513,7 +513,11 @@ class Oracle(PurePursuit):
         PurePursuit.__init__(self, sim_conf)
         self.name = "Oracle Pure Pursuit"
         
-        self.buffer = []
+        self.buffer = BufferIL()
+
+        self.max_v = sim_conf.max_v
+        self.max_steer = sim_conf.max_steer
+        self.distance_scale = 10
 
     def plan(self, env_map):
         """
@@ -537,8 +541,9 @@ class Oracle(PurePursuit):
             return False
         
 
-        path_optimiser = PathOptimiser(path, env_map)
-        wpts = path_optimiser.optimise_path()
+        # path_optimiser = PathOptimiser(path, env_map)
+        # wpts = path_optimiser.optimise_path()
+        wpts = path # no optimisation 
 
         env_map.wpts = wpts
         self.set_wpts(wpts, 1)
@@ -549,10 +554,33 @@ class Oracle(PurePursuit):
     def act(self, obs):
         action = self.act_pp(obs)
 
+        nn_obs = self.transform_obs(obs)
+        nn_act = action[0] / self.max_steer
+        self.buffer.add((nn_obs, nn_act))
+
         return action
 
     def done_entry(self, s_prime):
-        mem_entry = [s_prime]
-        self.buffer.append(mem_entry)
+        pass
+
+    def transform_obs(self, obs):
+        max_angle = 3.14
+
+        cur_v = [obs[3]/self.max_v]
+        cur_d = [obs[4]/self.max_steer]
+        target_angle = [obs[5]/max_angle]
+        target_distance = [obs[6]/self.distance_scale]
+
+        scan = obs[7:-1]
+
+        nn_obs = np.concatenate([cur_v, cur_d, target_angle, target_distance, scan])
+        nn_obs = np.concatenate([cur_d, target_angle, scan])
+
+        return nn_obs
+
+    def save_buffer(self, name):
+        buffer = np.array(self.buffer.storage)
+        filename = "Vehicles/" + name
+        np.save(filename, buffer)
 
 

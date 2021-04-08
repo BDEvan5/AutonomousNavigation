@@ -88,6 +88,8 @@ def run_oracle(env, vehicle, show=False, steps=100):
             vehicle.done_entry(s_prime)
             env.render(wait=False)
 
+            env.history.show_history()
+
             if s_prime[-1] == -1:
                 env.render(wait=True)
 
@@ -98,4 +100,35 @@ def run_oracle(env, vehicle, show=False, steps=100):
     print(f"Finished Training: {vehicle.name}")
 
 
+def generate_oracle_data(env, vehicle, show=False, steps=100):
+    done = False
+    state = env.reset()
+    vehicle.plan(env.env_map)
+    while not vehicle.plan(env.env_map):
+        state = env.reset() 
+
+    for n in range(steps):
+        a = vehicle.act(state)
+        s_prime, r, done, _ = env.step_plan(a)
+
+        state = s_prime
+        
+        # env.render(False)
+        
+        if done:
+            vehicle.done_entry(s_prime)
+            env.render(wait=False)
+
+            if s_prime[-1] == -1:
+                env.render(wait=True)
+
+            state = env.reset()
+            while not vehicle.plan(env.env_map):
+                state = env.reset()
+
+    vehicle.save_buffer("ImitationData1")
+
+    print(f"Finished Training: {vehicle.name}")
+
+    return vehicle.buffer
 
