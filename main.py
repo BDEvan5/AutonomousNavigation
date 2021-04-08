@@ -29,7 +29,7 @@ def test_data_generation():
     env = NavSim("pfeiffer")
     vehicle = Oracle(env.sim_conf)
 
-    buffer = generate_oracle_data(env, vehicle, True, 1000)
+    buffer = generate_oracle_data(env, vehicle, True, 10000)
 
 
 
@@ -39,12 +39,13 @@ def test_imitation_training():
     
     agent_name = "ImitationPfeiffer"
     imitation_vehicle = ImitationNet(agent_name)
-    imitation_vehicle.train(buffer)
+    imitation_vehicle.train2(buffer)
+    # imitation_vehicle.train(buffer)
     imitation_vehicle.save("Vehicles/")
 
 def test_trained_imitation():
     agent_name = "ImitationPfeiffer"
-    
+
     env = NavSim("pfeiffer")
     vehicle = ImitationVehicle(env.sim_conf, agent_name)
     test_single_vehicle(env, vehicle, True, 100)

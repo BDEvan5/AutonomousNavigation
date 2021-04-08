@@ -564,16 +564,16 @@ class Oracle(PurePursuit):
         pass
 
     def transform_obs(self, obs):
-        max_angle = 3.14
+        max_angle = np.pi
 
-        cur_v = [obs[3]/self.max_v]
+        # cur_v = [obs[3]/self.max_v]
         cur_d = [obs[4]/self.max_steer]
         target_angle = [obs[5]/max_angle]
-        target_distance = [obs[6]/self.distance_scale]
+        # target_distance = [obs[6]/self.distance_scale]
 
         scan = obs[7:-1]
 
-        nn_obs = np.concatenate([cur_v, cur_d, target_angle, target_distance, scan])
+        # nn_obs = np.concatenate([cur_v, cur_d, target_angle, target_distance, scan])
         nn_obs = np.concatenate([cur_d, target_angle, scan])
 
         return nn_obs

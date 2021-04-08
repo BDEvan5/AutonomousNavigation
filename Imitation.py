@@ -95,41 +95,12 @@ class ImitationNet:
         self.actor = Actor(state_dim, action_dim, max_action, h_size)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
 
-    def nn_act(self, state, noise=0.1):
-        state = torch.FloatTensor(state.reshape(1, -1))
-
-        action = self.actor(state).data.numpy().flatten()
-        if noise != 0: 
-            action = (action + np.random.normal(0, noise, size=self.act_dim))
-            
-        return action.clip(-self.max_action, self.max_action)
-
-    def save(self, directory="./saves"):
+    def save(self, directory="Vehicles"):
         filename = self.name
 
         torch.save(self.actor, '%s/%s_actor.pth' % (directory, filename))
 
-    def load(self, directory="./saves"):
-        filename = self.name
-        self.actor = torch.load('%s/%s_actor.pth' % (directory, filename))
-
-        print("Agent Loaded")
-
-    def try_load(self, load=True, h_size=300, path=None):
-        if load:
-            try:
-                self.load(path)
-            except Exception as e:
-                print(f"Exception: {e}")
-                print(f"Unable to load model")
-                pass
-        else:
-            print(f"Not loading - restarting training")
-            self.create_agent(h_size)
-
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
-
-    def train(self, replay_buffer, batches=10000):
+    def train(self, replay_buffer, batches=200000):
         losses = np.zeros(batches)
         print(f"Training agent")
         for i in range(batches):
@@ -138,7 +109,8 @@ class ImitationNet:
             action = torch.FloatTensor(u)
 
             #TODO check that the actions are correctly scaled from steering to -1, 1
-            actor_loss = F.mse_loss(self.actor(state), action)
+            action_guesses = self.actor(state)
+            actor_loss = F.mse_loss(action_guesses, action)
             
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
@@ -146,15 +118,57 @@ class ImitationNet:
             
             losses[i] = actor_loss
 
-            if i % 100 == 0:
+            if i % 500 == 0:
                 print(f"Batch: {i}: Loss: {actor_loss}")
 
+                plt.figure(1)
+                plt.clf()
+                plt.plot(losses)
+                plt.pause(0.0001)
+
         return losses 
+
+    def train2(self, replay_buffer, batches=200000):
+        losses = np.zeros(batches)
+        batch_size = 100
+
+        loss = nn.MSELoss()
+        optimiser = optim.SGD(self.actor.parameters(), lr=0.001)
+
+        for i in range(batches):
+            x, u = replay_buffer.sample(batch_size)
+            state = torch.FloatTensor(x)
+            action = torch.FloatTensor(u)
+
+            optimiser.zero_grad()
+
+            outputs = self.actor(state)
+            actor_loss = loss(outputs[:,0], action)
+            actor_loss.backward()
+            optimiser.step()
+
+            losses[i] = actor_loss
+
+            if i % 500 == 0:
+                print(f"Batch: {i}: Loss: {actor_loss}")
+
+                lib.plot(losses, 100)
+
+                self.save()
+
+                # plt.figure(1)
+                # plt.clf()
+                # plt.plot(losses)
+                # plt.pause(0.0001)
+
+        return losses 
+
 
 
 class ImitationVehicle:
     def __init__(self, sim_conf, name) -> None:
         self.actor = torch.load('%s/%s_actor.pth' % ("Vehicles/", name))
+        # self.actor = Actor(12, 1, 1, 200)
 
         self.max_v = sim_conf.max_v
         self.max_steer = sim_conf.max_steer
@@ -163,14 +177,14 @@ class ImitationVehicle:
     def transform_obs(self, obs):
         max_angle = 3.14
 
-        cur_v = [obs[3]/self.max_v]
+        # cur_v = [obs[3]/self.max_v]
         cur_d = [obs[4]/self.max_steer]
         target_angle = [obs[5]/max_angle]
-        target_distance = [obs[6]/self.distance_scale]
+        # target_distance = [obs[6]/self.distance_scale]
 
         scan = obs[7:-1]
 
-        nn_obs = np.concatenate([cur_v, cur_d, target_angle, target_distance, scan])
+        # nn_obs = np.concatenate([cur_v, cur_d, target_angle, target_distance, scan])
         nn_obs = np.concatenate([cur_d, target_angle, scan])
 
         return nn_obs

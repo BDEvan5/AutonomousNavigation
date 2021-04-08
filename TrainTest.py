@@ -117,14 +117,18 @@ def generate_oracle_data(env, vehicle, show=False, steps=100):
         
         if done:
             vehicle.done_entry(s_prime)
+
             env.render(wait=False)
 
-            if s_prime[-1] == -1:
-                env.render(wait=True)
+            # if s_prime[-1] == -1:
+            #     env.render(wait=True)
 
             state = env.reset()
             while not vehicle.plan(env.env_map):
                 state = env.reset()
+
+        if n % 200 == 1:
+            print(f"Filling buffer: {n}")
 
     vehicle.save_buffer("ImitationData1")
 

@@ -358,7 +358,7 @@ class NavMap:
             y = int(location[1]/self.resolution)
             i += 1
 
-        print(f"DT val ({location}) --> ({x, y}): {self.dt_img[x, y]}")
+        # print(f"DT val ({location}) --> ({x, y}): {self.dt_img[x, y]}")
 
         return location
 
