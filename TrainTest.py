@@ -40,24 +40,24 @@ def test_single_vehicle(env, vehicle, show=False, laps=100):
     state = env.reset()
     done, score = False, 0.0
     for i in range(laps):
-        print(f"Running lap: {i}")
         while not done:
             a = vehicle.act(state)
             s_p, r, done, _ = env.step_plan(a)
             state = s_p
             # env.render(False)
-        print(f"Lap time updates: {env.steps}")
         if show:
             # vehicle.show_vehicle_history()
-            env.history.show_history()
+            # env.history.show_history()
             # env.history.show_forces()
             env.render(wait=False)
             # env.render(wait=True)
 
         if r == -1:
             crashes += 1
+            print(f"({i}) Crashed -> time: {env.steps} ")
         else:
             completes += 1
+            print(f"({i}) Complete -> time: {env.steps}")
             lap_times.append(env.steps)
         state = env.reset()
         
@@ -135,4 +135,46 @@ def generate_oracle_data(env, vehicle, show=False, steps=100):
     print(f"Finished Training: {vehicle.name}")
 
     return vehicle.buffer
+
+def run_dagger_improvement(env, oracle_vehicle, dagger_vehicle, batches=100):
+    for i in range(batches):
+        buffer = run_dagger_batch(env, oracle_vehicle, dagger_vehicle, 1000)
+        dagger_vehicle.aggregate_buffer(buffer)
+        dagger_vehicle.train()
+        dagger_vehicle.save()
+        test_single_vehicle(env, dagger_vehicle, False, 20)
+
+def run_dagger_batch(env, oracle_vehicle, dagger_vehicle, steps):
+    done = False
+    state = env.reset()
+    oracle_vehicle.plan(env.env_map)
+    while not oracle_vehicle.plan(env.env_map):
+        state = env.reset() 
+
+    for n in range(steps):
+        a = dagger_vehicle.act(state)
+
+        # Auto adds the state and action to buffer
+        #TODO: move the buffer out of the vehicle
+        oracle_action = oracle_vehicle.act(state)
+
+        # follow the dagger vehicle
+        s_prime, r, done, _ = env.step_plan(a)
+
+        state = s_prime
+        
+        if done:
+            oracle_vehicle.done_entry(s_prime)
+
+            env.render(wait=False)
+
+            state = env.reset()
+            while not oracle_vehicle.plan(env.env_map):
+                state = env.reset()
+
+        if n % 200 == 1:
+            print(f"Filling buffer: {n}")
+
+    return oracle_vehicle.buffer
+
 

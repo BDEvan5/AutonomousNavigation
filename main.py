@@ -1,6 +1,6 @@
-from Imitation import BufferIL, ImitationNet, ImitationVehicle
+from Imitation import BufferIL, DaggerVehicle, ImitationNet, ImitationVehicle
 from Oracle import Oracle
-from TrainTest import generate_oracle_data, run_oracle, train_vehicle, test_single_vehicle
+from TrainTest import generate_oracle_data, run_dagger_improvement, run_oracle, train_vehicle, test_single_vehicle
 from Simulator import NavSim
 from AgentNav import AgentNav
 
@@ -32,7 +32,6 @@ def test_data_generation():
     buffer = generate_oracle_data(env, vehicle, True, 10000)
 
 
-
 def test_imitation_training():
     buffer = BufferIL()
     buffer.load_data("ImitationData1")
@@ -50,6 +49,17 @@ def test_trained_imitation():
     vehicle = ImitationVehicle(env.sim_conf, agent_name)
     test_single_vehicle(env, vehicle, True, 100)
 
+def test_dagger():
+    env = NavSim("pfeiffer")
+    oracle_vehicle = Oracle(env.sim_conf)
+
+    dagger_vehicle = DaggerVehicle("ImitationPfeiffer", env.sim_conf)
+    dagger_vehicle.load_buffer("ImitationData1")
+
+    run_dagger_improvement(env, oracle_vehicle, dagger_vehicle)
+
+
+
 
 if __name__ == "__main__":
     # test_nav_std()
@@ -58,6 +68,6 @@ if __name__ == "__main__":
 
     # test_data_generation()
     # test_imitation_training()
-    test_trained_imitation()
-
+    # test_trained_imitation()
+    test_dagger()
 
