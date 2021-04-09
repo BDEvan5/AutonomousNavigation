@@ -47,7 +47,7 @@ def test_trained_imitation():
 
     env = NavSim("pfeiffer")
     vehicle = ImitationVehicle(env.sim_conf, agent_name)
-    test_single_vehicle(env, vehicle, True, 100)
+    test_single_vehicle(env, vehicle, True, 1000)
 
 def test_dagger():
     env = NavSim("pfeiffer")
@@ -69,6 +69,6 @@ if __name__ == "__main__":
 
     # test_data_generation()
     # test_imitation_training()
-    # test_trained_imitation()
-    test_dagger()
+    test_trained_imitation()
+    # test_dagger()
 
