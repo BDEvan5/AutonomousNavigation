@@ -213,8 +213,8 @@ class DaggerVehicle:
         self.buffer = BufferIL()
 
         filename = '%s/%s_actor.pth' % ("Vehicles", self.name)
-        self.actor = torch.load(filename)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
+        # self.actor = torch.load(filename)
+        self.actor = Actor(12, 1, 1, 200)
 
         self.max_v = sim_conf.max_v
         self.max_steer = sim_conf.max_steer

@@ -53,8 +53,8 @@ class PathFinder:
             i += 1
             # self.plot_nodes()
 
-            if i % 100 == 0:
-                print(f"Search step: {i}")
+            # if i % 100 == 0:
+            #     print(f"Search step: {i}")
         # print(f"Number of itterations: {i}")
         assert i < max_steps, "Max Iterations reached: problem with search"
         assert len(self.open_list) > 0, "Search broke: no open nodes"

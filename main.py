@@ -54,7 +54,8 @@ def test_dagger():
     oracle_vehicle = Oracle(env.sim_conf)
 
     dagger_vehicle = DaggerVehicle("ImitationPfeiffer", env.sim_conf)
-    dagger_vehicle.load_buffer("ImitationData1")
+    # dagger_vehicle.load_buffer("ImitationData1")
+    # dagger_vehicle.train(20000)
 
     run_dagger_improvement(env, oracle_vehicle, dagger_vehicle)
 
